@@ -266,45 +266,27 @@ function doSearch(q) {
 updateCount(PAPERS.length);
 
 /* Live prices via Yahoo Finance */
+const FINNHUB_KEY = 'd6vub89r01qjh1odib3gd6vub89r01qjh1odib40'; // get free key at finnhub.io
+
 async function fetchPrice(ticker) {
-  const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=2d`;
-
-  const proxies = [
-    async () => {
-      const r = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(yahooUrl)}`);
-      const w = await r.json();
-      return JSON.parse(w.contents);
-    },
-    async () => {
-      const r = await fetch(`https://corsproxy.io/?url=${encodeURIComponent(yahooUrl)}`);
-      return await r.json();
-    },
-    async () => {
-      const r = await fetch(`https://api.codetabs.com/v1/proxy?quest=${yahooUrl}`);
-      return await r.json();
+  try {
+    const [quote, prev] = await Promise.all([
+      fetch(`https://finnhub.io/api/v1/quote?symbol=${ticker}&token=${FINNHUB_KEY}`).then(r => r.json()),
+    ]);
+    const price = quote.c;  // current price
+    const close = quote.pc; // previous close
+    const chg   = ((price - close) / close * 100).toFixed(2);
+    const up    = parseFloat(chg) >= 0;
+    const el    = document.getElementById('price-' + ticker);
+    if (el) {
+      el.innerHTML = `${ticker} <span class="price">$${price.toFixed(2)}</span><span class="chg ${up ? 'up' : 'dn'}">${up ? '▲' : '▼'} ${Math.abs(chg)}%</span>`;
     }
-  ];
-
-  for (const proxy of proxies) {
-    try {
-      const data  = await proxy();
-      const meta  = data.chart.result[0].meta;
-      const price = meta.regularMarketPrice;
-      const prev  = meta.chartPreviousClose;
-      const chg   = ((price - prev) / prev * 100).toFixed(2);
-      const up    = parseFloat(chg) >= 0;
-      const el    = document.getElementById('price-' + ticker);
-      if (el) {
-        el.innerHTML = `${ticker} <span class="price">$${price.toFixed(2)}</span><span class="chg ${up ? 'up' : 'dn'}">${up ? '▲' : '▼'} ${Math.abs(chg)}%</span>`;
-      }
-      return;
-    } catch(e) {
-      console.warn(`Proxy failed for ${ticker}:`, e.message);
-    }
+  } catch(e) {
+    console.warn(`fetchPrice failed for ${ticker}:`, e.message);
   }
-
-  console.error(`All proxies failed for ${ticker}`);
 }
+
+PAPERS.forEach(p => fetchPrice(p.ticker));
 
 PAPERS.forEach(p => fetchPrice(p.ticker));
 </script>
